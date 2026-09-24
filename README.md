@@ -7,7 +7,7 @@ Get the GitHub **Pair Extraordinaire** achievement by having a bot merge a commi
 ## How it works
 
 1. You open an issue from the *Pair request* template.
-2. A GitHub Action makes a commit adding `pairs/<your-username>.md` with
+2. A GitHub Action, running as the repo owner, makes a commit adding `pairs/<your-username>.md` with
    `Co-authored-by: you <ID+you@users.noreply.github.com>`.
 3. It opens a PR with that commit, merges it, and closes your issue with a link.
 
@@ -16,10 +16,11 @@ The co-author is always the signed-in author of the issue, so nobody can put you
 ## Setting up your own copy
 
 1. Push this folder to a new **public** GitHub repo.
-2. **Settings → Actions → General → Workflow permissions**
-   - Select **Read and write permissions**
-   - Tick **Allow GitHub Actions to create and approve pull requests**
-3. **Settings → General → Pull Requests:** make sure **Allow merge commits** is enabled.
-4. (Optional) **Settings → Pages:** deploy from the `main` branch, `/ (root)`, to host `index.html`.
+2. Create a [fine-grained personal access token](https://github.com/settings/personal-access-tokens/new)
+   limited to **only this repo**, with **Contents**, **Pull requests** and **Issues** set to *Read and write*.
+3. Save it as a repo secret named `PAIR_TOKEN`: `gh secret set PAIR_TOKEN -R OWNER/REPO` (paste the token when asked).
+   Commits and PRs are then made as you, with each requester as co-author.
+4. **Settings → General → Pull Requests:** make sure **Allow merge commits** is enabled.
+5. (Optional) **Settings → Pages:** deploy from the `main` branch, `/ (root)`, to host `index.html`.
    On `*.github.io` the page detects the repo automatically; elsewhere, set `FALLBACK_REPO` in `index.html`.
-5. Test it by opening a pair request from your own account.
+6. Test it by opening a pair request from a second account or a friend's.

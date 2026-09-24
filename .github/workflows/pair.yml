@@ -1,8 +1,9 @@
 name: Pair Extraordinaire
 
 # Triggered when someone opens an issue from the "Pair request" template.
-# The bot makes a commit that lists the issue author as co-author, opens a
-# PR with it, and merges it, which counts toward the Pair Extraordinaire badge.
+# Using the repo owner's token (PAIR_TOKEN secret), it makes a commit authored
+# by the owner with the issue author as co-author, opens a PR as the owner,
+# and merges it. Both people get credit toward Pair Extraordinaire.
 
 on:
   issues:
@@ -23,7 +24,8 @@ jobs:
     if: startsWith(github.event.issue.title, '[pair]') && github.event.issue.user.type == 'User'
     runs-on: ubuntu-latest
     env:
-      GH_TOKEN: ${{ github.token }}
+      # Everything runs as the repo owner so the commit and PR are theirs.
+      GH_TOKEN: ${{ secrets.PAIR_TOKEN }}
       # The requester is the authenticated issue author, so nobody can
       # request a commit on someone else's behalf.
       LOGIN: ${{ github.event.issue.user.login }}
@@ -31,12 +33,27 @@ jobs:
       ISSUE: ${{ github.event.issue.number }}
       BASE: ${{ github.event.repository.default_branch }}
     steps:
+      - name: Require PAIR_TOKEN
+        env:
+          PAIR_TOKEN: ${{ secrets.PAIR_TOKEN }}
+        run: |
+          if [ -z "$PAIR_TOKEN" ]; then
+            echo "::error::Add a PAIR_TOKEN repo secret (see README)."
+            exit 1
+          fi
+
       - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.PAIR_TOKEN }}
 
       - name: Skip users who already have a pair commit
         id: check
         run: |
-          if [ -f "pairs/$LOGIN.md" ]; then
+          if [ "$LOGIN" = "${{ github.repository_owner }}" ]; then
+            gh issue comment "$ISSUE" --body "You can't pair with yourself 🙂"
+            gh issue close "$ISSUE" --reason "not planned"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          elif [ -f "pairs/$LOGIN.md" ]; then
             gh issue comment "$ISSUE" --body "@$LOGIN you already have a merged co-authored commit here: pairs/$LOGIN.md. The badge can take up to a day to appear on your profile."
             gh issue close "$ISSUE" --reason "not planned"
             echo "skip=true" >> "$GITHUB_OUTPUT"
@@ -51,8 +68,11 @@ jobs:
           # user never has to hand over their real email.
           email="${USER_ID}+${LOGIN}@users.noreply.github.com"
 
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # Commit as the token's owner, using their noreply address.
+          owner_login=$(gh api user -q .login)
+          owner_id=$(gh api user -q .id)
+          git config user.name "$owner_login"
+          git config user.email "${owner_id}+${owner_login}@users.noreply.github.com"
           git switch -c "$branch"
 
           mkdir -p pairs
