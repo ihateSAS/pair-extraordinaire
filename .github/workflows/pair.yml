@@ -1,0 +1,76 @@
+name: Pair Extraordinaire
+
+# Triggered when someone opens an issue from the "Pair request" template.
+# The bot makes a commit that lists the issue author as co-author, opens a
+# PR with it, and merges it, which counts toward the Pair Extraordinaire badge.
+
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+# Handle one request at a time so pushes and merges never race.
+concurrency:
+  group: pair-bot
+  cancel-in-progress: false
+
+jobs:
+  pair:
+    if: startsWith(github.event.issue.title, '[pair]') && github.event.issue.user.type == 'User'
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      # The requester is the authenticated issue author, so nobody can
+      # request a commit on someone else's behalf.
+      LOGIN: ${{ github.event.issue.user.login }}
+      USER_ID: ${{ github.event.issue.user.id }}
+      ISSUE: ${{ github.event.issue.number }}
+      BASE: ${{ github.event.repository.default_branch }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Skip users who already have a pair commit
+        id: check
+        run: |
+          if [ -f "pairs/$LOGIN.md" ]; then
+            gh issue comment "$ISSUE" --body "@$LOGIN you already have a merged co-authored commit here: pairs/$LOGIN.md. The badge can take up to a day to appear on your profile."
+            gh issue close "$ISSUE" --reason "not planned"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create co-authored commit, open PR, merge
+        if: steps.check.outputs.skip != 'true'
+        run: |
+          set -euo pipefail
+          branch="pair/$LOGIN-$ISSUE"
+          # GitHub's noreply address is always linked to the account, so the
+          # user never has to hand over their real email.
+          email="${USER_ID}+${LOGIN}@users.noreply.github.com"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$branch"
+
+          mkdir -p pairs
+          printf '# @%s\n\nPaired on %s (request #%s).\n' "$LOGIN" "$(date -u +%Y-%m-%d)" "$ISSUE" > "pairs/$LOGIN.md"
+          git add "pairs/$LOGIN.md"
+          git commit -m "Add @$LOGIN to pairs" -m "Co-authored-by: $LOGIN <$email>"
+          git push origin "$branch"
+
+          pr_url=$(gh pr create --base "$BASE" --head "$branch" \
+            --title "Pair: @$LOGIN" \
+            --body "Co-authored commit for @$LOGIN (request #$ISSUE).")
+          # A merge commit keeps the original commit and its Co-authored-by trailer intact.
+          gh pr merge "$pr_url" --merge --delete-branch
+
+          gh issue comment "$ISSUE" --body "Done, @$LOGIN! Your co-authored commit was merged in $pr_url. Pair Extraordinaire usually shows up on your profile within a few hours (sometimes up to a day). Make sure **Show Achievements** is on in your profile settings."
+          gh issue close "$ISSUE" --reason "completed"
+
+      - name: Report failure on the issue
+        if: failure()
+        run: |
+          gh issue comment "$ISSUE" --body "Sorry @$LOGIN, something went wrong. A maintainer will take a look." || true

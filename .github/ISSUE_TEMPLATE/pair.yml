@@ -1,0 +1,18 @@
+name: Pair request
+description: Get a co-authored commit merged for the Pair Extraordinaire badge.
+title: "[pair] request"
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Submit this issue and a bot will make a commit that lists **you** as co-author,
+        open a pull request with it, and merge it. You don't need to change anything.
+
+        Your GitHub noreply address is used for the co-author line, so your real email is never shown.
+  - type: checkboxes
+    id: confirm
+    attributes:
+      label: Confirmation
+      options:
+        - label: I understand a bot will add a commit to this repo that lists me as co-author.
+          required: true

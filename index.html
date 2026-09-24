@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pair Extraordinaire</title>
+<meta name="description" content="Get a co-authored commit merged for the GitHub Pair Extraordinaire achievement.">
+<style>
+  :root {
+    --bg: #f6f8fa; --card: #ffffff; --text: #1f2328; --muted: #59636e;
+    --border: #d1d9e0; --accent: #1f883d; --accent-text: #ffffff;
+    --ok: #1a7f37; --warn: #9a6700; --err: #d1242f; --code: #eff2f5;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0d1117; --card: #151b23; --text: #e6edf3; --muted: #9198a1;
+      --border: #3d444d; --accent: #238636; --accent-text: #ffffff;
+      --ok: #3fb950; --warn: #d29922; --err: #f85149; --code: #212830;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0d1117; --card: #151b23; --text: #e6edf3; --muted: #9198a1;
+    --border: #3d444d; --accent: #238636; --accent-text: #ffffff;
+    --ok: #3fb950; --warn: #d29922; --err: #f85149; --code: #212830;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  }
+  main { max-width: 640px; margin: 0 auto; padding: 48px 16px 64px; }
+  h1 { font-size: 2rem; margin: 0 0 8px; letter-spacing: -0.01em; }
+  .lede { color: var(--muted); margin: 0 0 32px; }
+  .card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+    padding: 24px; margin-bottom: 20px;
+  }
+  .card h2 { font-size: 1.1rem; margin: 0 0 12px; }
+  ol { margin: 0; padding-left: 20px; }
+  li + li { margin-top: 6px; }
+  .btn {
+    display: inline-block; background: var(--accent); color: var(--accent-text);
+    text-decoration: none; font-weight: 600; border: 0; border-radius: 8px;
+    padding: 12px 20px; font-size: 1rem; cursor: pointer; margin-top: 16px;
+  }
+  .btn:hover { filter: brightness(1.08); }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; }
+  input {
+    flex: 1 1 200px; min-width: 0; font: inherit; color: var(--text);
+    background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px;
+  }
+  .row .btn { margin-top: 0; }
+  #status { margin-top: 12px; min-height: 1.5em; }
+  .ok { color: var(--ok); } .warn { color: var(--warn); } .err { color: var(--err); }
+  code { background: var(--code); padding: 2px 6px; border-radius: 6px; font-size: 0.9em; }
+  .fine { color: var(--muted); font-size: 0.9rem; }
+</style>
+</head>
+<body>
+<main>
+  <h1>🧑‍🤝‍🧑 Pair Extraordinaire</h1>
+  <p class="lede">Get a co-authored commit merged into a real repo and earn the GitHub achievement. No email or password needed.</p>
+
+  <section class="card">
+    <h2>How it works</h2>
+    <ol>
+      <li>Click the button below and sign in to GitHub if asked.</li>
+      <li>Tick the confirmation box and submit the issue.</li>
+      <li>A bot commits a file with you as <code>Co-authored-by</code>, opens a PR and merges it (about a minute).</li>
+      <li>The badge appears on your profile, usually within a few hours.</li>
+    </ol>
+    <a class="btn" id="request" href="#">Request my pair commit →</a>
+  </section>
+
+  <section class="card">
+    <h2>Check your status</h2>
+    <div class="row">
+      <input id="login" placeholder="your-github-username" autocomplete="off" spellcheck="false" aria-label="GitHub username">
+      <button class="btn" id="check">Check</button>
+    </div>
+    <div id="status" role="status"></div>
+  </section>
+
+  <p class="fine">
+    Your GitHub noreply address (<code>ID+username@users.noreply.github.com</code>) is used for the co-author line.
+    The request comes from your signed-in account, so no one can request a commit in your name.
+    Make sure <strong>Show Achievements</strong> is on in your GitHub profile settings.
+  </p>
+</main>
+
+<script>
+  // Set this if the page is hosted anywhere other than GitHub Pages for the same repo.
+  const FALLBACK_REPO = "OWNER/REPO";
+
+  function detectRepo() {
+    const host = location.hostname;
+    if (host.endsWith(".github.io")) {
+      const owner = host.replace(".github.io", "");
+      const first = location.pathname.split("/").filter(Boolean)[0];
+      return `${owner}/${first || host}`;
+    }
+    return FALLBACK_REPO;
+  }
+
+  const REPO = detectRepo();
+  document.getElementById("request").href =
+    `https://github.com/${REPO}/issues/new?template=pair.yml`;
+
+  const statusEl = document.getElementById("status");
+  const input = document.getElementById("login");
+
+  function setStatus(cls, html) {
+    statusEl.className = cls;
+    statusEl.innerHTML = html;
+  }
+
+  async function check() {
+    const login = input.value.trim().replace(/^@/, "");
+    if (!/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/.test(login)) {
+      setStatus("err", "That doesn't look like a GitHub username.");
+      return;
+    }
+    setStatus("", "Checking…");
+    try {
+      const res = await fetch(`https://api.github.com/repos/${REPO}/contents/pairs/${login}.md`);
+      if (res.ok) {
+        setStatus("ok", `✓ @${login} has a merged co-authored commit. The badge should show up on your profile soon.`);
+      } else if (res.status === 404) {
+        setStatus("warn", `No pair commit for @${login} yet. Use the button above to request one.`);
+      } else if (res.status === 403) {
+        setStatus("err", "GitHub's rate limit was hit. Try again in a few minutes.");
+      } else {
+        setStatus("err", `GitHub returned an error (${res.status}).`);
+      }
+    } catch {
+      setStatus("err", "Couldn't reach GitHub. Check your connection.");
+    }
+  }
+
+  document.getElementById("check").addEventListener("click", check);
+  input.addEventListener("keydown", e => { if (e.key === "Enter") check(); });
+</script>
+</body>
+</html>
